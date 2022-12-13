@@ -1,0 +1,185 @@
+
+from ROOT import *
+import numpy as np
+
+#da aggiustare, voglio aggiungere un if che che la derivata arriva sotto ad una certa 
+# soglia calcola la tensione in quel punto. Forse conviene farlo direttamente 
+# in fase di presa dati 
+
+app = TApplication("app",0,0)
+
+g1 = TGraphErrors()
+g2 = TGraphErrors()
+g3 = TGraphErrors()
+g4 = TGraphErrors()
+g5 = TGraphErrors()
+g6 = TGraphErrors()
+
+
+c = TCanvas()
+
+
+file1 = open("out_uv.dat",'r')
+file2 = open("out_blu.dat",'r')
+file3 = open("out_verde.dat",'r')
+file4 = open("out_rosso.dat",'r')
+file5 = open("out_giallo.dat",'r')
+file6 = open("out_ir.dat",'r')
+
+
+#files = [file1, file2, file3, file4, file5, file6]
+files = [
+    'out_uv.dat', 
+    'out_blu.dat', 
+    'out_verde.dat',
+    'out_giallo.dat',
+    'out_rosso.dat',
+    'out_ir.dat'
+]
+
+
+
+graph = [g1,g2,g3,g4,g5,g6]
+
+#V, eV = np.loadtxt('out.dat', unpack=True)
+lam = np.array( [405e-09, 467e-09, 520e-09, 590e-09, 624e-09, 890e-09])
+nu = 299792458/lam #lista con tutte le lunghezze d onda
+e_lambda = [10e-09,10e-09 ,10e-09,13e-09,13e-09,10e-09] #lista con tutti gli errori associati alle lunghezze d onda
+
+e_nu = 1/(lam*lam)*e_lambda*299792458
+
+for i, file in enumerate(files):
+    f = open(file)
+    for j, line in enumerate(f):
+        l = line.split()
+        graph[i].SetPoint(j, float(l[0]), float(l[1]))
+        graph[i].SetPointError(j,0,float(l[2]))
+        #g.SetPoint(i,nu[i],v)
+        #g.SetPointError(i,e_nu[i],ev)
+        print("_______________________________________________")
+
+
+    
+g1.SetMarkerStyle(20)
+g2.SetMarkerStyle(20)
+g3.SetMarkerStyle(20)
+g4.SetMarkerStyle(20)
+g5.SetMarkerStyle(20)
+g6.SetMarkerStyle(20)
+
+g1.SetMarkerColor(kMagenta)
+g2.SetMarkerColor(kBlue)
+g3.SetMarkerColor(kGreen)
+g4.SetMarkerColor(kRed)
+g5.SetMarkerColor(kYellow)
+g6.SetMarkerColor(kOrange-3)
+
+
+c.Draw()
+frame = c.DrawFrame(-4.5, 0.5, 100 , 3.5)
+c.cd()
+
+frame.SetTitle("Scarica condensatore")
+frame.GetXaxis().SetTitle("Tempo(s)")
+frame.GetYaxis().SetTitle("Tensione(V)")
+
+
+g1.Draw("P")
+g2.Draw("P")
+g3.Draw("P")
+g4.Draw("P")
+g5.Draw("P")
+g6.Draw("P")
+
+
+print("****************************************************")
+
+
+f1 = TF1("f1","[0]+[1]*x")
+f2 = TF1("f2","[0]+[1]*x")
+f3 = TF1("f3","[0]+[1]*x")
+f4 = TF1("f4","[0]+[1]*x")
+f5 = TF1("f5","[0]+[1]*x")
+f6 = TF1("f6","[0]+[1]*x")
+
+f1.SetLineColor(kMagenta)
+f2.SetLineColor(kBlue)
+f3.SetLineColor(kGreen)
+f4.SetLineColor(kRed)
+f5.SetLineColor(kYellow)
+f6.SetLineColor(kOrange-3)
+
+
+fit = [f1,f2,f3,f4,f5,f6]
+e_intercetta = np.array([])
+
+for q,g in enumerate(graph):
+    f = fit[q]
+    g.Fit(f'f{q+1}', '', '', 60, 92)
+    fit[q] = f
+    e_intercetta  = np.append(e_intercetta, f.GetParError(0))
+
+
+g = TGraphErrors()
+c2 = TCanvas("c2","pippo")
+fitt = TF1("fitt","[0]+(1.0/[1])*x")
+fitt.SetParameter(0, -2.30851e-01)
+fitt.SetParameter(1, (2.417989454e14))
+
+func = TF1("fun", "(1.0/2.417989454e14)*x - 0.4266298656")
+
+ofile = open('linear.dat','w')
+
+
+
+for p, f in enumerate(fit):
+    val = f.GetParameter(0)
+    g.SetPoint(p, nu[p], val)
+    g.SetPointError(p, e_nu[p], e_intercetta[p])
+    linea = str(nu[p]) + ' ' + str(e_nu[p]) + ' ' + str(val) + ' ' + str(e_intercetta[p])
+    print(linea)
+    ofile.write(linea + "\n")
+    
+    
+    
+
+
+g.RemovePoint(1)
+g.RemovePoint(0)
+
+c2.Draw()
+c2.cd()
+
+g.SetTitle("Tensione vs Frequenza")
+g.GetXaxis().SetTitle("Frequenze(Hz)")
+g.GetYaxis().SetTitle("Tensione(V)")
+
+
+g.SetMarkerStyle(20)
+g.Draw("AP")
+g.Print()
+g.Fit("fitt")
+func.SetLineColor(kBlue-4)
+#g.Fit("func")
+func.Draw("same")
+
+val = fitt.GetParameter(1)
+e_val = fitt.GetParError(1)
+val_vero = 2.417989454e14
+
+print(fitt.GetParameter(1)/(1e14),fitt.GetParError(1)/(1e14))
+
+if(abs(val-val_vero) < 3*e_val):
+    print("ALLELUIAAAAAAAAAAAAAAAAAAAAAAA")
+else:
+    print(abs(val-val_vero)/e_val)
+
+    
+app.Run(True)
+
+
+
+#f = TF1("f","[0] + [1] * x")
+#f.SetParameter(0,0)
+#f.SetParameter(1,0.24e15)
+#g.Fit("f")
